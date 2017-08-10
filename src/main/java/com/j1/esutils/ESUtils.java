@@ -1,14 +1,14 @@
 package com.j1.esutils;
 
 import com.j1.pojo.Goods;
-import com.j1.pojo.GoodsFilter2ES;
+
 
 import java.io.IOException;  
 import java.net.InetAddress;  
 import java.net.UnknownHostException;  
 import java.util.ArrayList;  
-import java.util.List;  
-  
+import java.util.List;
+
 import org.elasticsearch.action.bulk.BulkItemResponse;  
 import org.elasticsearch.action.bulk.BulkRequestBuilder;  
 import org.elasticsearch.action.bulk.BulkResponse;  
@@ -23,17 +23,22 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;  
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.transport.client.PreBuiltTransportClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.JsonParseException;  
 import com.fasterxml.jackson.core.JsonProcessingException;  
 import com.fasterxml.jackson.databind.JsonMappingException;  
-import com.fasterxml.jackson.databind.ObjectMapper;  
-public class ESUtils {
+import com.fasterxml.jackson.databind.ObjectMapper; 
 
+public class ESUtils {
+	
+	
+	 protected static final Logger logger = LoggerFactory.getLogger(ESUtils.class);
     /** 
      * es服务器的host 
      */  
-    private static final String host = "192.168.1.88";  
+    private static final String host = "127.0.0.1";  
   
     /** 
      * es服务器暴露给client的port 
@@ -55,8 +60,9 @@ public class ESUtils {
     	 //设置集群名称
         Settings settings = Settings.builder().put("cluster.name", "es-5.4.3").build();
         //创建client
-        TransportClient client = new PreBuiltTransportClient(settings)
-                .addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName("127.0.0.1"), 9300));
+        @SuppressWarnings("resource")
+		TransportClient client = new PreBuiltTransportClient(settings)
+                .addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName(host), port));
         return client;  
     }  
   
@@ -71,12 +77,15 @@ public class ESUtils {
     public static void createIndex(List<Goods> goodsList) throws UnknownHostException, JsonProcessingException {  
         Client client = getClient();  
         // 如果存在就先删除索引  
-        if (client.admin().indices().prepareExists("test_index").get().isExists()) {  
-            client.admin().indices().prepareDelete("test_index").get();  
+        if (client.admin().indices().prepareExists("test_index1").get().isExists()) {  
+            client.admin().indices().prepareDelete("test_index1").get();  
         }  
         // 创建索引,并设置mapping.  
-        String mappingStr = "{ \"goods\" : { \"properties\": { \"id\": { \"type\": \"long\" }, \"name\": {\"type\": \"string\", \"analyzer\": \"ik_max_word\"}, \"regionIds\": {\"type\": \"string\",\"index\": \"not_analyzed\"}}}}";  
-        client.admin().indices().prepareCreate("test_index").addMapping("goods", mappingStr).get();  
+      //  String mappingStr = "{ \"goods\" :"+ " { \"properties\": "+ "{ \"id\": { \"type\": \"long\" }, "+ "\"name\": {\"type\": \"string\", "+"\"sellPoint\": {\"type\": \"string\", "+ "\"analyzer\": \"ik_max_word\"}, "+ "\"regionIds\": {\"type\": \"string\","+ "\"index\": \"not_analyzed\"}"+ "}"+ "}"+ "}";  
+        String mappingStr = "{ \"goods\" : { \"properties\": { \"id\": { \"type\": \"long\" },\"sellPoint\": { \"type\": \"string\",\"analyzer\": \"ik_max_word\" }, \"name\": {\"type\": \"string\", \"analyzer\": \"ik_max_word\"}, \"regionIds\": {\"type\": \"string\",\"index\": \"not_analyzed\"}}}}";  
+
+        
+        client.admin().indices().prepareCreate("test_index1").addMapping("goods", mappingStr).get();  
   
         // 批量处理request  
         BulkRequestBuilder bulkRequest = client.prepareBulk();  
@@ -84,12 +93,13 @@ public class ESUtils {
         byte[] json;  
         for (Goods goods : goodsList) {  
             json = mapper.writeValueAsBytes(goods);  
-            bulkRequest.add(new IndexRequest("test_index", "goods", goods.getId() + "").source(json));  
+            bulkRequest.add(new IndexRequest("test_index1", "goods", goods.getId() + "").source(json));  
         }  
   
         // 执行批量处理request  
         BulkResponse bulkResponse = bulkRequest.get();  
   
+        try{
         // 处理错误信息  
         if (bulkResponse.hasFailures()) {  
             System.out.println("====================批量创建索引过程中出现错误 下面是错误信息==========================");  
@@ -98,8 +108,12 @@ public class ESUtils {
                 System.out.println("发生错误的 索引id为 : "+bulkItemResponse.getId()+" ，错误信息为："+ bulkItemResponse.getFailureMessage());  
                 count++;  
             }  
-            System.out.println("====================批量创建索引过程中出现错误 上面是错误信息 共有: "+count+" 条记录==========================");  
-        }  
+            System.out.println("====================批量创建索引过程中出现错误 上面是错误信息 共有: "+count+" 条记录==========================");
+            logger.info("创建索引成功");
+           }
+        }catch(Exception e){
+        	 logger.error("Cookie Decode Error.", e);
+        }
   
         client.close();  
     }  
@@ -113,25 +127,27 @@ public class ESUtils {
      * @throws JsonMappingException 
      * @throws IOException 
      */  
-    public static List<Goods> search(GoodsFilter2ES filter)  
-            throws JsonParseException, JsonMappingException, IOException {  
+    public static List<Goods> search(Goods good)  
+            throws Exception {  
         Client client = getClient();  
         QueryBuilder qb = new BoolQueryBuilder()  
-                .must(QueryBuilders.matchQuery("name",filter.getQueryStr()))  
-                .must(QueryBuilders.termQuery("regionIds", filter.getRegionId()));  
+               .must(QueryBuilders.matchQuery("sellPoint",good.getSellPoint()));
+            //  .must(QueryBuilders.termQuery("sellPoint", good.getSellPoint()));  
   
-        SearchResponse response = client.prepareSearch("test_index").setTypes("goods").setQuery(qb).execute()  
+        SearchResponse response = client.prepareSearch("test_index1").setTypes("goods").setQuery(qb).execute()  
                 .actionGet();  
   
-        SearchHit[] hits = response.getHits().getHits();  
-        List<Goods> goodsIds = new ArrayList<>();  
+        SearchHit[] hits = response.getHits().getHits(); 
+       
+        List<Goods> list = new ArrayList<>();  
         for (SearchHit hit : hits) {  
             Goods goods = mapper.readValue(hit.getSourceAsString(), Goods.class);  
-            goodsIds.add(goods);  
+            list.add(goods);  
         }  
   
+        //关闭
         client.close();  
-        return goodsIds;  
+        return list;  
     }  
   
     /** 
@@ -147,13 +163,13 @@ public class ESUtils {
      * @throws JsonProcessingException 
      */  
     public static void addDocument(String index, String type, Goods goods)  
-            throws UnknownHostException, JsonProcessingException {  
+            throws Exception {  
         Client client = getClient();  
   
         byte[] json = mapper.writeValueAsBytes(goods);  
-  
+        logger.info("创建索引成功",json);
         client.prepareIndex(index, type, goods.getId() + "").setSource(json).get();  
-  
+        System.out.println(json);
         client.close();  
     }  
   
@@ -172,7 +188,7 @@ public class ESUtils {
         Client client = getClient();  
   
         client.prepareDelete(index, type, goodsId+"").get();  
-  
+        logger.info("删除成功");
         client.close();  
     }  
   
@@ -192,5 +208,6 @@ public class ESUtils {
             throws Exception {  
         //如果新增的时候index存在，就是更新操作  
         addDocument(index, type, goods);  
+        logger.info("更新成功");
     }  
 }
