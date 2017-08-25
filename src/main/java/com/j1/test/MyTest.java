@@ -61,7 +61,7 @@ public class MyTest {
         //test_index 和 goods 在创建索引的时候写死了 所以这样 就传这两个值  
         //String[] r = {"r2","r3"};  
         
-        Goods goods = new Goods(5L, "新增的咖啡", "欢迎品尝");  
+        Goods goods = new Goods(6L, "新增的咖啡", "欢迎品尝");  
         ESUtils.addDocument("test_index", "goods", goods);  
     }  
       
@@ -73,7 +73,7 @@ public class MyTest {
     @Test  
     public void testUpdateDoc() throws Exception{  
      //   String[] r = {"r2","r3"};  
-        Goods goods = new Goods(5L, "修改啦的咖啡", "欢迎下次品尝");  
+        Goods goods = new Goods(6L, "修改啦的咖啡", "欢迎下次品尝");  
         ESUtils.updateDocument("test_index", "goods", goods);  
     }  
       
@@ -86,4 +86,15 @@ public class MyTest {
     public void testDelDoc() throws Exception{  
         ESUtils.deleteDocument("test_index", "goods", 5L);  
     }  
+    
+    
+    /**
+     * 删除索引测试
+     */
+    
+    
+    @Test  
+    public void testDeletIndex() throws Exception{  
+        ESUtils.deleteIndex("test");  
+    } 
 }
