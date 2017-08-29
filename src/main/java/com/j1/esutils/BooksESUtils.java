@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
@@ -32,7 +33,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-public class ESUtils {
+public class BooksESUtils {
 
 	protected static final Logger logger = LoggerFactory.getLogger(ESUtils.class);
 	/**
@@ -74,11 +75,12 @@ public class ESUtils {
 	 * @throws UnknownHostException
 	 * @throws JsonProcessingException
 	 */
-	public static void createIndex(List<Goods> goodsList) throws UnknownHostException, JsonProcessingException {
+	@SuppressWarnings("deprecation")
+	public static void createIndex(List<Books> booksList) throws UnknownHostException, JsonProcessingException {
 		Client client = getClient();
 		// 如果存在就先删除索引
-		if (client.admin().indices().prepareExists("test_index1").get().isExists()) {
-			client.admin().indices().prepareDelete("test_index1").get();
+		if (client.admin().indices().prepareExists("test_index2").get().isExists()) {
+			client.admin().indices().prepareDelete("test_index2").get();
 		}
 		// 创建索引,并设置mapping.
 		// String mappingStr = "{ \"goods\" :"+ " { \"properties\": "+ "{
@@ -86,24 +88,41 @@ public class ESUtils {
 		// "+"\"sellPoint\": {\"type\": \"string\", "+ "\"analyzer\":
 		// \"ik_max_word\"}, "+ "\"regionIds\": {\"type\": \"string\","+
 		// "\"index\": \"not_analyzed\"}"+ "}"+ "}"+ "}";
-		String mappingStr = "{ \"goods\" : { \"properties\":"
-				+ " { \"id\": { \"type\": \"long\" },"
-				+ "\"sellPoint\": { \"type\": \"string\",\"analyzer\": \"ik_max_word\" },"
-				+ " \"name\": {\"type\": \"string\", \"analyzer\": \"ik_max_word\"}, "
-				+ "\"regionIds\": {\"type\": \"string\",\"index\": \"not_analyzed\"}}}}";
+		//String mappingStr = "{ \"goods\" : { \"properties\": { \"id\": { \"type\": \"long\" },\"sellPoint\": { \"type\": \"string\",\"analyzer\": \"ik_max_word\" }, \"name\": {\"type\": \"string\", \"analyzer\": \"ik_max_word\"}, \"regionIds\": {\"type\": \"string\",\"index\": \"not_analyzed\"}}}}";
+
+		/**
+		 * private Long id;
+		private String title;
+		private String  language;
+		private String author;
+		private Long price;
+		private Date year;
+		private String  description;
+		 */
+		String mappingStr2=	"{ \"goods\" : { \"properties\": "
+				+ "{ \"id\":"
+				+ " { \"type\": \"long\" },"
+				+ "\"title\": { \"type\": \"string\",\"analyzer\": \"ik_max_word\" },"
+				+ " \"language\": {\"type\": \"string\", \"analyzer\": \"ik_max_word\"},"
+				+ " \"author\": {\"type\": \"string\",\"index\": \"not_analyzed\"},"
+				+ " \"price\": {\"type\": \"long\",\"index\": \"not_analyzed\"}, "
+				+ "\"year\": {\"type\": \"date\",\"index\": \"not_analyzed\"},"
+				+ "\"description\": { \"type\": \"string\",\"analyzer\": \"ik_max_word\" }"
+				+ "}"
+			+ "}"
+		+ "}";
 
 		//创建索引,并设置文档类型为goods,设置mapping
-		client.admin().indices().prepareCreate("test_index1").addMapping("goods", mappingStr).get();
+		client.admin().indices().prepareCreate("test_index2").addMapping("goods", mappingStr2).get();
 
 		// 批量处理request
 		BulkRequestBuilder bulkRequest = client.prepareBulk();
-
 		byte[] json;
-		for (Goods goods : goodsList) {
-			json = mapper.writeValueAsBytes(goods);
-			bulkRequest.add(new IndexRequest("test_index1", "goods", goods.getId() + "").source(json));
+	
+		for (Books books : booksList) {
+			json = mapper.writeValueAsBytes(books);
+			bulkRequest.add(new IndexRequest("test_index2", "goods", books.getId() + "").source(json));
 		}
-
 		// 执行批量处理request
 		BulkResponse bulkResponse = bulkRequest.get();
 
@@ -157,29 +176,6 @@ public class ESUtils {
 		client.close();
 		return list;
 	}
-	
-	public static List<Books> searchBooks(Books books) throws Exception {
-		Client client = getClient();
-		QueryBuilder qb = new BoolQueryBuilder().must(QueryBuilders.matchQuery("language", books.getLanguage()));
-		// .must(QueryBuilders.termQuery("sellPoint", good.getSellPoint()));
-
-		SearchResponse response = client.prepareSearch("test_index2").setTypes("goods").setQuery(qb).execute()
-				.actionGet();
-
-		SearchHit[] hits = response.getHits().getHits();
-
-		List<Books> list = new ArrayList<>();
-		for (SearchHit hit : hits) {
-			Books book = mapper.readValue(hit.getSourceAsString(), Books.class);
-			list.add(book);
-		}
-
-		// 关闭
-		client.close();
-		return list;
-	}
-	
-	
 
 	/**
 	 * 新增document
@@ -193,13 +189,13 @@ public class ESUtils {
 	 * @throws UnknownHostException
 	 * @throws JsonProcessingException
 	 */
-	public static void addDocument(String index, String type, Goods goods) throws Exception {
+	@SuppressWarnings("deprecation")
+	public static void addDocument(String index, String type, Books books) throws Exception {
 		Client client = getClient();
 
-		byte[] json = mapper.writeValueAsBytes(goods);
-		logger.info("创建索引成功", json);
-		//更新文档
-		client.prepareIndex(index, type, goods.getId() + "").setSource(json).get();
+		byte[] json = mapper.writeValueAsBytes(books);
+		
+		client.prepareIndex(index, type, books.getId() + "").setSource(json).get();
 		System.out.println(json);
 		client.close();
 	}
@@ -235,9 +231,9 @@ public class ESUtils {
 	 * @throws JsonProcessingException
 	 * @throws UnknownHostException
 	 */
-	public static void updateDocument(String index, String type, Goods goods) throws Exception {
+	public static void updateDocument(String index, String type, Books books) throws Exception {
 		// 如果新增的时候index存在，就是更新操作
-		addDocument(index, type, goods);
+		addDocument(index, type, books);
 		logger.info("更新成功");
 	}
 
